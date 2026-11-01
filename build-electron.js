@@ -9,7 +9,7 @@ esbuild.build({
   platform: 'node',
   target: 'node20',
   format: 'cjs',
-  external: ['electron', 'better-sqlite3', 'bcryptjs'],
+  external: ['electron', 'better-sqlite3', 'bcryptjs', 'oracledb'],
   sourcemap: isDev,
   minify: false,
   tsconfig: './tsconfig.electron.json',

@@ -76,6 +76,10 @@ var api = {
   updateSettings: (data) => import_electron.ipcRenderer.invoke("settings:update", data),
   backupDatabase: () => import_electron.ipcRenderer.invoke("settings:backup"),
   resetSampleData: () => import_electron.ipcRenderer.invoke("settings:resetSampleData"),
-  getAuditLogs: (params) => import_electron.ipcRenderer.invoke("settings:auditLogs", params)
+  getAuditLogs: (params) => import_electron.ipcRenderer.invoke("settings:auditLogs", params),
+  // Database Engine Management
+  getDbInfo: () => import_electron.ipcRenderer.invoke("db:getInfo"),
+  saveDbConfig: (config) => import_electron.ipcRenderer.invoke("db:saveConfig", config),
+  testOracleConnection: (config) => import_electron.ipcRenderer.invoke("db:testOracle", config)
 };
 import_electron.contextBridge.exposeInMainWorld("api", api);

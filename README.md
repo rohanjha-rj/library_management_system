@@ -1,8 +1,10 @@
 # Library Management System
 
-A fully functional, professional **Desktop Library Management System** built with **Electron + React + TypeScript + SQLite**.
+A fully functional, professional **Desktop Library Management System** built with **Electron + React + TypeScript + Oracle Database (with SQLite fallback)**.
 
-Designed for college and institutional libraries.
+Designed for college and institutional libraries. Supports **Oracle Database 19c, 21c XE, and 23ai Free** via official `oracledb` Thin Mode.
+
+See [ORACLE_SETUP_GUIDE.md](file:///c:/Users/jharo/Desktop/Web%20Designing/library_management_system/ORACLE_SETUP_GUIDE.md) for complete Oracle Database installation and connection instructions.
 
 ---
 

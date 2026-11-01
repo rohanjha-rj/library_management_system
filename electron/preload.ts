@@ -69,6 +69,11 @@ const api = {
   backupDatabase: () => ipcRenderer.invoke('settings:backup'),
   resetSampleData: () => ipcRenderer.invoke('settings:resetSampleData'),
   getAuditLogs: (params?: any) => ipcRenderer.invoke('settings:auditLogs', params),
+
+  // Database Engine Management
+  getDbInfo: () => ipcRenderer.invoke('db:getInfo'),
+  saveDbConfig: (config: any) => ipcRenderer.invoke('db:saveConfig', config),
+  testOracleConnection: (config: any) => ipcRenderer.invoke('db:testOracle', config),
 }
 
 contextBridge.exposeInMainWorld('api', api)

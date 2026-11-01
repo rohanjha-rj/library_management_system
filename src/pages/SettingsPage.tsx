@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Settings, Save, Shield, Users, Database, RefreshCw, X, Plus, Lock } from 'lucide-react'
+import { Settings, Save, Shield, Users, Database, RefreshCw, X, Plus, Lock, CheckCircle, AlertCircle, Server } from 'lucide-react'
 import { LibrarySetting } from '../types'
 import { useApp } from '../context/AppContext'
 
@@ -18,8 +18,36 @@ export default function SettingsPage() {
   const [pwdDialog, setPwdDialog] = useState(false)
   const [pwdForm, setPwdForm] = useState({ oldPassword: '', newPassword: '', confirm: '' })
   const [resetConfirm, setResetConfirm] = useState(false)
+  const [dbInfo, setDbInfo] = useState<any>(null)
+  const [oracleForm, setOracleForm] = useState({
+    user: 'LIBRARY',
+    password: '',
+    connectString: 'localhost:1521/XEPDB1',
+    dbType: 'oracle'
+  })
+  const [testingConn, setTestingConn] = useState(false)
+  const [savingDbConfig, setSavingDbConfig] = useState(false)
 
   const isAdmin = user?.role === 'administrator'
+
+  async function loadDbInfo() {
+    try {
+      if (window.api.getDbInfo) {
+        const info = await window.api.getDbInfo()
+        setDbInfo(info)
+        if (info?.config?.oracle) {
+          setOracleForm(prev => ({
+            ...prev,
+            user: info.config.oracle.user || 'LIBRARY',
+            connectString: info.config.oracle.connectString || 'localhost:1521/XEPDB1',
+            dbType: info.config.dbType || 'sqlite'
+          }))
+        }
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   async function loadSettings() {
     const items = await window.api.getSettings() as LibrarySetting[]
@@ -42,7 +70,56 @@ export default function SettingsPage() {
     loadSettings()
     if (tab === 'users') loadUsers()
     if (tab === 'audit') loadAuditLogs()
+    if (tab === 'database') loadDbInfo()
   }, [tab])
+
+  async function handleTestOracle() {
+    if (!oracleForm.password) {
+      showToast('Please enter the Oracle password to test', 'warning')
+      return
+    }
+    setTestingConn(true)
+    try {
+      const res = await window.api.testOracleConnection({
+        user: oracleForm.user,
+        password: oracleForm.password,
+        connectString: oracleForm.connectString
+      })
+      if (res.success) {
+        showToast(res.message || 'Oracle Database connection successful!')
+      } else {
+        showToast(`Connection failed: ${res.error}`, 'error')
+      }
+    } catch (e: any) {
+      showToast(`Error: ${e.message}`, 'error')
+    } finally {
+      setTestingConn(false)
+    }
+  }
+
+  async function handleSaveDbConfig(newType: 'oracle' | 'sqlite') {
+    setSavingDbConfig(true)
+    try {
+      const res = await window.api.saveDbConfig({
+        dbType: newType,
+        oracle: {
+          user: oracleForm.user,
+          password: oracleForm.password,
+          connectString: oracleForm.connectString
+        }
+      })
+      if (res.success) {
+        showToast(`Database configuration saved! Restart the app to use ${newType === 'oracle' ? 'Oracle' : 'SQLite'}.`)
+        loadDbInfo()
+      } else {
+        showToast(`Save failed: ${res.error}`, 'error')
+      }
+    } catch (e: any) {
+      showToast(`Error: ${e.message}`, 'error')
+    } finally {
+      setSavingDbConfig(false)
+    }
+  }
 
   async function handleSaveSettings() {
     setSaving(true)
@@ -266,12 +343,120 @@ export default function SettingsPage() {
 
         {/* Database */}
         {tab === 'database' && (
-          <div style={{ maxWidth: 600 }} className="stack">
+          <div style={{ maxWidth: 700 }} className="stack">
+            {/* Active Database Status Card */}
+            <div className="section">
+              <div className="section-header">
+                <span className="section-title">Active Database Engine</span>
+                <span className={`badge ${dbInfo?.activeDbType === 'oracle' ? 'badge-success' : 'badge-neutral'}`}>
+                  {dbInfo?.activeDbType === 'oracle' ? 'Oracle Database (Enterprise)' : 'SQLite (Local File)'}
+                </span>
+              </div>
+              <div style={{ padding: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                  <Server size={24} color="var(--color-accent)" />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>
+                      Currently running on: {dbInfo?.activeDbType === 'oracle' ? 'Oracle Database (Thin Mode)' : 'Local SQLite'}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                      {dbInfo?.activeDbType === 'oracle'
+                        ? `Connected to: ${dbInfo?.config?.oracle?.connectString || 'localhost:1521/XEPDB1'} as user ${dbInfo?.config?.oracle?.user || 'LIBRARY'}`
+                        : 'Using embedded SQLite file. Configure Oracle DB below to switch to Oracle.'}
+                    </div>
+                  </div>
+                </div>
+                {dbInfo?.error && (
+                  <div className="alert alert-warning" style={{ fontSize: 12, marginTop: 8 }}>
+                    <AlertCircle size={15} />
+                    <span>Last Oracle attempt warning: {dbInfo.error} (fell back safely to SQLite).</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Oracle Database Configuration */}
+            {isAdmin && (
+              <div className="section">
+                <div className="section-header">
+                  <span className="section-title">Oracle Database Setup & Connection</span>
+                </div>
+                <div style={{ padding: 20 }} className="stack">
+                  <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                    Connect to an Oracle Database 12c, 19c, 21c, or 23ai (Express Edition XE supported). Uses pure JavaScript Thin Mode — no Oracle Instant Client required.
+                  </p>
+
+                  <div className="form-group">
+                    <label className="form-label required">Connection String (Easy Connect)</label>
+                    <input
+                      className="form-input"
+                      value={oracleForm.connectString}
+                      onChange={e => setOracleForm(f => ({ ...f, connectString: e.target.value }))}
+                      placeholder="e.g. localhost:1521/XEPDB1 or 127.0.0.1:1521/XE"
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                      Format: host:port/service_name (Oracle XE default is localhost:1521/XEPDB1)
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div className="form-group">
+                      <label className="form-label required">Oracle Username</label>
+                      <input
+                        className="form-input"
+                        value={oracleForm.user}
+                        onChange={e => setOracleForm(f => ({ ...f, user: e.target.value }))}
+                        placeholder="e.g. LIBRARY or SYSTEM"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label required">Oracle Password</label>
+                      <input
+                        className="form-input"
+                        type="password"
+                        value={oracleForm.password}
+                        onChange={e => setOracleForm(f => ({ ...f, password: e.target.value }))}
+                        placeholder="Database password"
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10, paddingTop: 10 }}>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleTestOracle}
+                      disabled={testingConn}
+                    >
+                      {testingConn ? <span className="loading-spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <CheckCircle size={14} />}
+                      Test Oracle Connection
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handleSaveDbConfig('oracle')}
+                      disabled={savingDbConfig}
+                    >
+                      {savingDbConfig ? <span className="loading-spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <Save size={14} />}
+                      Switch to Oracle Database
+                    </button>
+                    {dbInfo?.activeDbType === 'oracle' && (
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => handleSaveDbConfig('sqlite')}
+                        disabled={savingDbConfig}
+                      >
+                        Revert to SQLite
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="section">
               <div className="section-header"><span className="section-title">Database Backup</span></div>
               <div style={{ padding: 20 }}>
                 <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 16 }}>
-                  Create a backup copy of the database in the application data directory. Backups preserve all books, members, transactions, and settings.
+                  Create a backup copy of the current database records in the application data directory.
                 </p>
                 <button className="btn btn-secondary" onClick={handleBackup}>
                   <Database size={14} /> Create Backup
